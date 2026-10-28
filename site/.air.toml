@@ -1,0 +1,26 @@
+# Live reload for the docs site: task site (or air -c .air.toml from site/).
+# The root is the repository so edits to docs/*.md rebuild too; only site/
+# and docs/ are watched. Each build copies docs/*.md into site/docs/ first,
+# because go:embed cannot reach outside the module.
+
+root = ".."
+tmp_dir = "site/tmp"
+
+[build]
+  cmd = "mkdir -p site/docs && rm -f site/docs/*.md && cp docs/*.md site/docs/ && cd site && CGO_ENABLED=0 go build -o ./tmp/site ."
+  bin = "./site/tmp/site"
+  delay = 500
+  include_dir = ["site", "docs"]
+  exclude_dir = ["site/tmp", "site/docs", "site/og"]
+  include_ext = ["go", "tmpl", "md", "js", "css", "svg", "png", "woff2"]
+  exclude_regex = ["_test\\.go$"]
+  kill_delay = "500ms"
+  send_interrupt = true
+  log = "site/tmp/build-errors.log"
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true

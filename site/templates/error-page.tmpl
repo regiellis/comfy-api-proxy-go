@@ -1,0 +1,22 @@
+{{define "error-page.tmpl"}}<!DOCTYPE html>
+<html lang="en">
+<head>{{template "site-head" .}}
+<meta name="robots" content="noindex">
+</head>
+<body>
+{{template "site-header" .}}
+<main id="main" class="error-page">
+  <p class="error-code">{{.status}}</p>
+  <h1>{{.heading}}</h1>
+  <p class="error-message">{{.message}}</p>
+  <ul class="error-routes">
+    <li><a class="button button-primary" href="/docs/introduction">Read the introduction</a></li>
+    <li><a class="button" href="/docs/search">Search the docs</a></li>
+    <li><a class="button" href="/">Home</a></li>
+  </ul>
+</main>
+{{template "site-footer" .}}
+{{template "site-scripts" .}}
+</body>
+</html>
+{{end}}
