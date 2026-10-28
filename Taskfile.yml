@@ -1,0 +1,328 @@
+version: '3'
+
+vars:
+  BIN: bin/comfy-api-proxy
+  MAIN: ./cmd/comfy-api-proxy
+  REF: proxy-ref-ts
+  SDK_REF: comfy-python-sdk
+  # The commits the submodules pin, for clones without them (the public
+  # repository). task publish:pins:check keeps them equal to the submodules.
+  REF_URL: https://github.com/Comfy-Org/comfy-api-proxy.git
+  REF_COMMIT: 1569dc17ec0dd293d4b9a0723e142204dacedb85
+  SDK_REF_URL: https://github.com/Comfy-Org/comfy-python-sdk.git
+  SDK_REF_COMMIT: 6d2dd7233dfa0a1abdf199beada55b2282e26b44
+  DEMO_BIN: bin/comfy-demo
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+
+# The reference checkout is read-only, so its venv, bytecode, and pytest cache
+# live outside it.
+env:
+  UV_PROJECT_ENVIRONMENT: '{{.ROOT_DIR}}/.cache/ref-venv'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+includes:
+  publish:
+    taskfile: ./Taskfile.private.yml
+    optional: true
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: Build the static Go binary into bin/, stamped with the git version
+    # CGO off keeps the binary static: Go's net package links libc otherwise.
+    env:
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}}" -o {{.BIN}} {{.MAIN}}
+
+  build:demo:
+    desc: Build the Go SDK demo into bin/
+    env:
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -ldflags "-s -w" -o {{.DEMO_BIN}} ./cmd/comfy-demo
+
+  bench:
+    desc: Benchmark the Go proxy against the Python reference (flags after --, see cmd/proxybench)
+    deps: [build, ref:sync]
+    cmds:
+      - go build -o bin/proxybench ./cmd/proxybench
+      # The load generator and stub upstream stay off the proxies' CPUs (0-7).
+      - taskset -c 8-{{.LAST_CPU}} bin/proxybench {{.CLI_ARGS}}
+    vars:
+      LAST_CPU:
+        sh: echo $(( $(nproc) - 1 ))
+
+  e2e:
+    desc: Run both SDKs' demos against the Go proxy and the fake ComfyUI
+    deps: [build, build:demo, ref:sync, sdk:ref:sync]
+    cmds:
+      - scripts/e2e.sh {{.BIN}} {{.DEMO_BIN}} {{.ROOT_DIR}}/.cache/ref-venv/bin/python {{.ROOT_DIR}}/.cache/sdk-venv/bin/python {{.REF}}
+
+  run:
+    desc: Build and run the Go proxy (pass flags after --)
+    deps: [build]
+    cmds:
+      - ./{{.BIN}} {{.CLI_ARGS}}
+
+  test:
+    desc: Run the Go tests (pass go test flags after --, e.g. -- -run TestName ./internal/proxy)
+    cmds:
+      - go test {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}./...{{end}}
+
+  lint:
+    desc: Run golangci-lint over the Go code
+    cmds:
+      - golangci-lint run ./...
+
+  security:
+    desc: Scan the proxy, the SDK, and the docs site against current Go vulnerability advisories
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - cd site && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  release:check:
+    desc: Everything a vX.Y.Z tag needs to pass first (gate, site, govulncheck, GoReleaser snapshot)
+    cmds:
+      - task: check
+      - task: site:test
+      - task: site:lint
+      - task: security
+      - goreleaser check
+      - goreleaser release --snapshot --clean
+
+  fmt:
+    desc: Format the Go code
+    cmds:
+      - gofmt -w cmd internal
+
+  # The docs site is its own Go module in site/, so the proxy module never
+  # depends on HyperChi. go:embed cannot reach ../docs, so every site task
+  # copies docs/*.md into site/docs/ first (gitignored, never edited by hand).
+  site:sync:
+    desc: Copy docs/*.md into site/docs/ for the docs site to embed
+    cmds:
+      - mkdir -p site/docs
+      - rm -f site/docs/*.md
+      - cp docs/*.md site/docs/
+    sources:
+      - docs/*.md
+    generates:
+      - site/docs/*.md
+
+  site:
+    desc: Run the docs site with Air live reload if installed, else go run (first free port from 8090)
+    deps: [site:sync]
+    dir: site
+    cmds:
+      - if command -v air >/dev/null 2>&1; then air -c .air.toml; else go run .; fi
+
+  site:run:
+    desc: Run the docs site without live reload (set PORT, HOST, PUBLIC_ORIGIN, ENVIRONMENT as needed)
+    deps: [site:sync]
+    dir: site
+    cmds:
+      - go run .
+
+  site:test:
+    desc: Run the docs site's tests (pass go test flags after --)
+    deps: [site:sync]
+    dir: site
+    cmds:
+      - go test {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}./...{{end}}
+
+  site:lint:
+    desc: Run golangci-lint over the docs site module
+    deps: [site:sync]
+    dir: site
+    cmds:
+      - golangci-lint run ./...
+
+  site:build:
+    desc: Build the static docs site binary into bin/site
+    deps: [site:sync]
+    dir: site
+    env:
+      CGO_ENABLED: '0'
+    cmds:
+      - go build -trimpath -ldflags "-s -w -X main.releaseVersion={{.VERSION}}" -o ../bin/site .
+
+  site:docker:
+    desc: Build the docs site image locally as comfy-proxy-site:<version> (no push)
+    cmds:
+      - docker build -f site/Dockerfile --build-arg RELEASE={{.VERSION}} -t comfy-proxy-site:{{.VERSION}} .
+
+  check:
+    desc: The full gate - lint, Go tests, conformance, and e2e
+    cmds:
+      - task: lint
+      - task: test
+      - task: conformance
+      - task: e2e
+
+  ref:init:
+    desc: Check out Comfy-Org's Python proxy at its pinned commit
+    cmds:
+      - scripts/ref-init.sh {{.REF}} {{.REF_URL}} {{.REF_COMMIT}}
+    status:
+      - test -f {{.REF}}/pyproject.toml
+
+  ref:changes:
+    desc: Fetch upstream and list what it added since the pinned commit, without pulling
+    deps: [ref:init]
+    cmds:
+      - git -C {{.REF}} fetch --quiet origin main
+      - git -C {{.REF}} log --oneline --no-decorate HEAD..origin/main
+      - git -C {{.REF}} diff --stat HEAD origin/main
+
+  ref:pull:
+    desc: Fast-forward the reference to upstream main and show what came in
+    deps: [ref:init]
+    cmds:
+      - |
+        before=$(git -C {{.REF}} rev-parse HEAD)
+        git -C {{.REF}} pull --ff-only --quiet origin main
+        git -C {{.REF}} log --oneline --no-decorate "$before"..HEAD
+        git -C {{.REF}} diff --stat "$before" HEAD
+      - echo "Next, run task ref:test, port what changed, then commit the new proxy-ref-ts pin."
+
+  ref:sync:
+    desc: Install the reference package and its dev tools into .cache/ref-venv
+    deps: [ref:init]
+    dir: '{{.REF}}'
+    cmds:
+      - uv sync --extra dev
+
+  ref:test:
+    desc: Run the reference pytest suite (pass pytest args after --)
+    deps: [ref:sync]
+    dir: '{{.REF}}'
+    cmds:
+      - uv run pytest -p no:cacheprovider {{.CLI_ARGS}}
+
+  conformance:
+    desc: Run the reference HTTP tests against the Go binary (pass pytest args after --)
+    deps: [build, ref:sync]
+    dir: '{{.REF}}'
+    env:
+      COMFY_PROXY_BIN: '{{.ROOT_DIR}}/{{.BIN}}'
+      PYTHONPATH: '{{.ROOT_DIR}}/tests/conformance'
+    cmds:
+      - uv run pytest -p no:cacheprovider -p conformance_plugin -q {{.CLI_ARGS}}
+
+  ref:fake-comfyui:
+    desc: Start the GPU-free ComfyUI stand-in on :8188
+    deps: [ref:sync]
+    dir: '{{.REF}}'
+    cmds:
+      - uv run python demo/fake_comfyui.py --port 8188
+
+  ref:run:
+    desc: Run the reference Python proxy for side-by-side comparison (pass flags after --)
+    deps: [ref:sync]
+    dir: '{{.REF}}'
+    cmds:
+      - uv run comfy-api-proxy {{.CLI_ARGS}}
+
+  sdk:ref:init:
+    desc: Check out Comfy-Org's Python SDK at its pinned commit
+    cmds:
+      - scripts/ref-init.sh {{.SDK_REF}} {{.SDK_REF_URL}} {{.SDK_REF_COMMIT}}
+    status:
+      - test -f {{.SDK_REF}}/pyproject.toml
+
+  sdk:ref:sync:
+    desc: Install the Python SDK and its dev tools into .cache/sdk-venv (lockfile untouched)
+    deps: [sdk:ref:init]
+    dir: '{{.SDK_REF}}'
+    env:
+      UV_PROJECT_ENVIRONMENT: '{{.ROOT_DIR}}/.cache/sdk-venv'
+    cmds:
+      - uv sync --frozen --extra dev
+
+  sdk:ref:test:
+    desc: Run the Python SDK's own suite (pass pytest args after --)
+    deps: [sdk:ref:sync]
+    dir: '{{.SDK_REF}}'
+    env:
+      UV_PROJECT_ENVIRONMENT: '{{.ROOT_DIR}}/.cache/sdk-venv'
+    cmds:
+      - uv run --frozen --extra dev pytest -p no:cacheprovider -q {{.CLI_ARGS}}
+
+  sdk:ref:changes:
+    desc: Fetch the Python SDK upstream and list what it added since the pin, without pulling
+    deps: [sdk:ref:init]
+    cmds:
+      - git -C {{.SDK_REF}} fetch --quiet origin main
+      - git -C {{.SDK_REF}} log --oneline --no-decorate HEAD..origin/main
+      - git -C {{.SDK_REF}} diff --stat HEAD origin/main
+
+  sdk:ref:pull:
+    desc: Fast-forward the Python SDK reference to upstream main and show what came in
+    deps: [sdk:ref:init]
+    cmds:
+      - |
+        before=$(git -C {{.SDK_REF}} rev-parse HEAD)
+        git -C {{.SDK_REF}} pull --ff-only --quiet origin main
+        git -C {{.SDK_REF}} log --oneline --no-decorate "$before"..HEAD
+        git -C {{.SDK_REF}} diff --stat "$before" HEAD
+      - echo "Next, run task sdk:ref:test, port what changed into sdk/, then commit the new comfy-python-sdk pin."
+
+  # Comfy Cloud and Comfy Router. These load COMFY_API_KEY from .env (gitignored)
+  # for themselves only, so the key never reaches the proxy, conformance, or e2e.
+  cloud:jobs:
+    desc: List your recent Comfy Cloud jobs (free; checks the key on the v2 API)
+    dotenv: ['.env']
+    deps: [build:demo]
+    preconditions:
+      - sh: test -f .env
+        msg: Copy .env.example to .env and set COMFY_API_KEY first.
+    cmds:
+      - ./{{.DEMO_BIN}} jobs {{.CLI_ARGS}}
+
+  cloud:models:
+    desc: List the Comfy Router model catalog (free)
+    dotenv: ['.env']
+    deps: [build:demo]
+    preconditions:
+      - sh: test -f .env
+        msg: Copy .env.example to .env and set COMFY_API_KEY first.
+    cmds:
+      - ./{{.DEMO_BIN}} models {{.CLI_ARGS}}
+
+  cloud:schema:
+    desc: Show a Router model's input schema (free; -- PROVIDER/MODEL)
+    dotenv: ['.env']
+    deps: [build:demo]
+    preconditions:
+      - sh: test -f .env
+        msg: Copy .env.example to .env and set COMFY_API_KEY first.
+    cmds:
+      - ./{{.DEMO_BIN}} schema {{.CLI_ARGS}}
+
+  cloud:run:
+    desc: Run a Router model (BILLED; -- PROVIDER/MODEL '{"prompt":"..."}' [-out DIR])
+    dotenv: ['.env']
+    deps: [build:demo]
+    prompt: This runs a billed generation on Comfy Router. Continue?
+    preconditions:
+      - sh: test -f .env
+        msg: Copy .env.example to .env and set COMFY_API_KEY first.
+    cmds:
+      - ./{{.DEMO_BIN}} run {{.CLI_ARGS}}
+
+  cloud:workflow:
+    desc: Run a workflow on Comfy Cloud (BILLED; -- -workflow FILE [-events])
+    dotenv: ['.env']
+    deps: [build:demo]
+    prompt: This runs a billed workflow on Comfy Cloud. Continue?
+    preconditions:
+      - sh: test -f .env
+        msg: Copy .env.example to .env and set COMFY_API_KEY first.
+    cmds:
+      - ./{{.DEMO_BIN}} -base cloud {{.CLI_ARGS}}

@@ -1,0 +1,88 @@
+{{define "index.tmpl"}}<!DOCTYPE html>
+<html lang="en">
+<head>{{template "site-head" .}}</head>
+<body>
+{{template "site-header" .}}
+<main id="main" class="home">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title">The Comfy API v2, in front of your own ComfyUI.</h1>
+      <p class="hero-lede">One static Go binary answers the API that Comfy Cloud serves and turns each request into calls on a ComfyUI you run. A Go SDK for the same API ships beside it, so a client written for Comfy Cloud runs against your GPU by changing its base URL.</p>
+      <p class="hero-independent">An independent, community Go port. It is not an official ComfyUI or Comfy Org project and is not affiliated with or endorsed by Comfy Org.</p>
+      <div class="install">
+        <p class="install-label" id="install-label">Install with Go 1.26 or newer</p>
+        <div class="install-command code-block">
+          <button type="button" class="copy-code" data-copy-code aria-label="Copy the install command">Copy</button>
+          <pre aria-labelledby="install-label"><code>go install github.com/regiellis/comfy-api-proxy-go/cmd/comfy-api-proxy@latest</code></pre>
+        </div>
+        <p class="install-alt">Or download a static binary for Linux, macOS, or Windows from the <a href="{{$.repo}}/releases">releases page</a>. <a href="/docs/install">All install options</a>.</p>
+      </div>
+      <ul class="hero-actions">
+        <li><a class="button button-primary" href="/docs/quickstart">Start the quick start</a></li>
+        <li><a class="button" href="/docs/introduction">Read the introduction</a></li>
+      </ul>
+    </div>
+    <figure class="hero-terminal">
+      <figcaption>Quick start, with ComfyUI running on its default port</figcaption>
+      <div class="code-block">
+        <button type="button" class="copy-code" data-copy-code aria-label="Copy the quick start commands">Copy</button>
+<pre><code>comfy-api-proxy
+curl -s http://127.0.0.1:8189/api/v2/health
+jq '{workflow: .}' workflow.json &gt; job.json
+curl -s -X POST http://127.0.0.1:8189/api/v2/jobs \
+  -H 'Content-Type: application/json' --data @job.json</code></pre>
+      </div>
+      <p class="terminal-note">Start the proxy, check that it reaches ComfyUI, wrap a workflow exported with <b>Export (API)</b>, and submit it. The response is a job with an id, a status, and URLs for its events. <a href="/docs/quickstart">Wait for it and download the output</a>.</p>
+    </figure>
+  </section>
+
+  <section class="why" aria-labelledby="why-title">
+    <h2 id="why-title">Why it exists</h2>
+    <div class="why-body">
+      <p>ComfyUI has no official Go SDK and no Go proxy. A Go application that wants to drive ComfyUI otherwise runs a Python service beside it, or writes HTTP and WebSocket code against ComfyUI's native API, which has no job ids of its own, no stable output ids, and no error envelope.</p>
+      <p>This project is for Go developers who would rather stay in Go. The proxy deploys as a single file: copy it to the GPU box and run it. It is a port of Comfy-Org's Python <a href="https://github.com/Comfy-Org/comfy-api-proxy">comfy-api-proxy</a>, and that project's own black-box HTTP suite passes against it, 82 of 82.</p>
+    </div>
+  </section>
+
+  <section class="features" aria-labelledby="features-title">
+    <h2 id="features-title">What you get</h2>
+    <dl class="feature-list">
+      <div><dt><a href="/docs/api">Jobs</a></dt><dd>Submit a workflow, poll it, list jobs with filters, cancel. Status reads ComfyUI's history and queue on every call, so it is never stale.</dd></div>
+      <div><dt><a href="/docs/events">Live events</a></dt><dd>A Server-Sent Events stream per job, bridged from ComfyUI's WebSocket: progress, previews, outputs, then the terminal status.</dd></div>
+      <div><dt><a href="/docs/assets">Assets</a></dt><dd>Uploads stream to disk while they are hashed (blake3), duplicates are found by hash, and model files can be placed into ComfyUI's model folders behind strict guards.</dd></div>
+      <div><dt><a href="/docs/remote-access">Safe defaults</a></dt><dd>Binds loopback only. A non-loopback bind needs a bearer token. A browser-origin guard blocks cross-site requests, and CORS is opt-in per origin.</dd></div>
+      <div><dt><a href="/docs/configuration">Operations</a></dt><dd>Flags, environment, or a TOML file, a <code>config</code> command that says where each value came from, background <code>start</code>, <code>stop</code>, and <code>status</code>, and optional SQLite state that survives restarts.</dd></div>
+      <div><dt><a href="/docs/sdk">Go SDK</a></dt><dd>The same client talks to this proxy, to the Python proxy, or to Comfy Cloud, and to Comfy Router for hosted models.</dd></div>
+    </dl>
+  </section>
+
+  <section class="bench" aria-labelledby="bench-title">
+    <div class="bench-copy">
+      <h2 id="bench-title">Measured against the Python reference</h2>
+      <p>On one machine, the Go proxy served 6 to 12 times the reference's requests per second with less memory, and held 64 MB uploads in 19 MB where the reference peaked at 298 MB.</p>
+      <p>Uploads are where Go gives ground: it spools each one to a temp file while hashing, so on one core it moves about half the reference's MB/s. Against a real ComfyUI, a generation takes seconds and none of this is the bottleneck.</p>
+      <p><a href="/docs/benchmarks">Method, latency, and how to measure your own</a></p>
+    </div>
+    <figure class="bench-table">
+      <figcaption>Measured on 2026-10-27 on one Linux machine (amd64, 24 threads), both proxies in front of the same instant upstream. Medians of 3 runs.</figcaption>
+      <div class="table-scroll">{{.bench}}</div>
+    </figure>
+  </section>
+
+  <section class="docs-map" aria-labelledby="map-title">
+    <h2 id="map-title">The documentation</h2>
+    <div class="map-grid">{{range .sections}}
+      <div class="map-group">
+        <h3>{{.Name}}</h3>
+        <ul>{{range .Pages}}
+          <li><a href="{{.Path}}">{{.Title}}</a></li>{{end}}
+        </ul>
+      </div>{{end}}
+    </div>
+  </section>
+</main>
+{{template "site-footer" .}}
+{{template "site-scripts" .}}
+</body>
+</html>
+{{end}}

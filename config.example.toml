@@ -1,0 +1,55 @@
+# comfy-api-proxy configuration.
+#
+# Copy to ~/.config/comfy-api-proxy/config.toml (or $XDG_CONFIG_HOME/...),
+# or point at it with --config / COMFY_PROXY_CONFIG.
+#
+# Precedence: flag, then COMFY_PROXY_<KEY> environment variable, then this
+# file, then the default. An unknown key is an error, so a typo fails loudly
+# instead of falling back to a default bind.
+# `comfy-api-proxy config` prints what was resolved and where each value came from.
+
+# Base URL of the ComfyUI this proxy fronts.
+comfyui = "http://127.0.0.1:8188"
+
+# Bind scope: "local" (127.0.0.1, the default), "global" (0.0.0.0, every
+# IPv4 interface), "localhost", or a literal IP address.
+# Anything other than loopback needs a token, or allow_insecure_bind.
+host = "local"
+
+# Fixed port. If it is taken the proxy exits with an error and never picks
+# another, because clients are configured with this one.
+port = 8189
+
+# Bearer token sent to ComfyUI on every request, the WebSocket included, for
+# a ComfyUI behind an authenticating gateway. Never sent to clients.
+# comfyui_token = "secret"
+
+# Bearer token required on /api/v2/* (health stays open). Required for a
+# non-loopback host unless allow_insecure_bind is set.
+# token = "change-me"
+
+# Permit a non-loopback bind without a token. Unsafe: anyone who can reach the
+# port can drive your ComfyUI.
+# allow_insecure_bind = false
+
+# Root of a ComfyUI install on this same machine. Enables model-file uploads
+# into models/<category>/ and POST /api/v2/assets/from-path.
+# comfyui_base_dir = "/path/to/ComfyUI"
+
+# Largest single upload, in MB.
+# max_upload_mb = 100
+
+# Opt-in SQLite state (jobs, idempotency keys, asset index, signing secret)
+# that survives restarts. Created 0700, database 0600.
+# state_dir = "/path/to/state"
+
+# Browser origins allowed to call this proxy. List explicit origins, since "*" is refused.
+# cors_origins = ["https://app.example.com"]
+
+# The origin clients reach the proxy at. Every link in a response starts with
+# it. Set it behind a reverse proxy that terminates TLS, or clients get http://
+# links and drop the token. X-Forwarded-* headers are never trusted for this.
+# public_url = "https://comfy.example.com"
+
+# Turn off the per-request access log.
+# quiet = false

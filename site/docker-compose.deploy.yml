@@ -1,0 +1,33 @@
+# Dokploy pulls an image built on the development host (task site:docker, then
+# tag and push it yourself); Traefik owns public TLS and routing.
+# PUBLIC_ORIGIN is the exact HTTPS origin the site answers, for example
+# https://comfy-proxy.regiellis.com. It sets canonical URLs, Open Graph URLs,
+# the sitemap, and the only public Host the site accepts.
+services:
+  web:
+    image: ${REGISTRY:-localhost:5000/comfy-proxy}/comfy-proxy-site:${TAG:?Set an existing release tag}
+    pull_policy: always
+    expose:
+      - "8080"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      ENVIRONMENT: "production"
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set the exact HTTPS origin, e.g. https://comfy-proxy.regiellis.com}
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

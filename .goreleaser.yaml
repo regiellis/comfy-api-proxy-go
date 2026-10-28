@@ -1,0 +1,55 @@
+# Release binaries for comfy-api-proxy. CI runs this on a vX.Y.Z tag
+# (.github/workflows/release.yml); `task release:snapshot` builds the same
+# archives locally into dist/ without publishing. Checked with GoReleaser v2.19.0.
+version: 2
+
+project_name: comfy-api-proxy
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: comfy-api-proxy
+    main: ./cmd/comfy-api-proxy
+    binary: comfy-api-proxy
+    env:
+      # Static: Go's net package links libc otherwise. SQLite is pure Go.
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - config.example.toml
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  # Release notes come from CHANGELOG.md (see release.yml), not from commits.
+  disable: true
+
+release:
+  github:
+    owner: regiellis
+    name: comfy-api-proxy-go
+  draft: false
+  prerelease: auto

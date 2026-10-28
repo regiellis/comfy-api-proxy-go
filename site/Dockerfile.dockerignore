@@ -1,0 +1,15 @@
+# Explicit build inputs only. Never send credentials, Git metadata, or the
+# reference submodules.
+**
+!docs/
+!docs/*.md
+!site/
+!site/go.mod
+!site/go.sum
+!site/*.go
+!site/static/
+!site/static/**
+!site/templates/
+!site/templates/**
+**/*_test.go
+**/.env*
