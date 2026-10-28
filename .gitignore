@@ -1,0 +1,16 @@
+/bin/
+/.cache/
+__pycache__/
+.env
+
+/dist/
+
+# The docs site copies docs/*.md here before building (task site:sync).
+/site/docs/
+/site/tmp/
+# Task's checksums for site:sync.
+/.task/
+
+# Comfy-Org references: submodules here, cloned by scripts/ref-init.sh elsewhere.
+/proxy-ref-ts/
+/comfy-python-sdk/

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- Source of static/img/og.png. Open at 1200x630 and capture the viewport.
+     Not served. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Open Graph card</title>
+<style>
+  @font-face { font-family: Inter; src: url("../static/fonts/inter/InterVariable.woff2") format("woff2"); font-weight: 100 900; }
+  @font-face { font-family: "Archivo Condensed"; src: url("../static/fonts/archivo/ArchivoCondensed-Bold.woff2") format("woff2"); font-weight: 700; }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: #211927; color: #F0EFED; font-family: Inter, sans-serif;
+    display: grid; grid-template-rows: auto auto 1fr auto; box-sizing: border-box;
+  }
+  .notice { background: #49378B; color: #F0EFED; font-size: 22px; padding: 14px 80px; }
+  .top { display: flex; align-items: center; gap: 18px; padding: 48px 80px 0;
+         font: 700 34px/1 "Archivo Condensed", sans-serif; }
+  .top img { width: 52px; height: 52px; }
+  .go { color: #F2FF59; }
+  h1 { align-self: center; margin: 0; padding: 0 80px; font: 700 84px/1.02 "Archivo Condensed", sans-serif; max-width: 1000px; }
+  .foot { display: flex; justify-content: space-between; margin: 0 80px; border-top: 2px solid #4D3762;
+          padding: 26px 0 48px; font-size: 24px; color: #C2BFB9; }
+  .foot b { color: #F2FF59; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="notice">Independent project. Not affiliated with or endorsed by Comfy Org.</div>
+  <div class="top"><img src="../static/img/favicon.svg" alt=""><span>comfy-api-proxy<span class="go">-go</span></span></div>
+  <h1>The Comfy API v2, in front of your own ComfyUI.</h1>
+  <div class="foot"><span>One static Go binary. A Go SDK for the same API.</span><b>MIT</b></div>
+</body>
+</html>

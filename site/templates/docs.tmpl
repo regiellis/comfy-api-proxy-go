@@ -1,0 +1,72 @@
+{{define "docs.tmpl"}}<!DOCTYPE html>
+<html lang="en">
+<head>{{template "site-head" .}}{{with .page}}
+<link rel="alternate" type="text/markdown" href="{{.MarkdownPath}}">{{end}}
+</head>
+<body>
+{{template "site-header" .}}
+<div class="docs-layout">
+  <aside class="docs-sidebar" aria-label="Documentation">
+    <nav aria-label="Documentation pages">{{template "docs-nav" .}}</nav>
+  </aside>
+  <main id="main" class="docs-main">
+    <details class="docs-menu">
+      <summary>All pages</summary>
+      <nav aria-label="Documentation pages (menu)">{{template "docs-nav" .}}</nav>
+    </details>
+    <form class="docs-searchbar" role="search" action="/docs/search" method="get">
+      <label class="sr-only" for="docs-q">Search the documentation</label>
+      <input id="docs-q" name="q" type="search" maxlength="80" value="{{.query}}" placeholder="Search the docs" autocomplete="off" spellcheck="false"
+             aria-keyshortcuts="/" aria-controls="docs-search-results"
+             hx-get="/docs/search" hx-trigger="input changed delay:250ms, search" hx-target="#docs-search-results" hx-sync="this:replace">
+      <kbd class="docs-search-key" aria-hidden="true">/</kbd>
+      <div id="docs-search-results" class="docs-search-results"></div>
+    </form>
+    {{with .page}}
+    <article class="docs-article">
+      <p class="docs-crumb">{{.Section}}</p>
+      <h1>{{.Title}}</h1>
+      <p class="lede">{{.Description}}</p>
+      <div class="docs-actions" role="group" aria-label="Page actions">
+        <button type="button" data-copy-page="{{.MarkdownPath}}" hidden>Copy page as Markdown</button>
+        <a href="{{.MarkdownPath}}">View as Markdown</a>
+        <a href="{{$.repo}}/blob/main/docs/{{.Slug}}.md">Source on GitHub</a>
+      </div>
+      <div class="prose">
+{{.Body}}
+      </div>
+      <nav class="docs-pager" aria-label="Previous and next page">
+        {{with .Prev}}<a class="pager-prev" href="{{.Path}}" rel="prev"><span class="pager-dir">Previous</span><span class="pager-title">{{.Title}}</span></a>{{end}}
+        {{with .Next}}<a class="pager-next" href="{{.Path}}" rel="next"><span class="pager-dir">Next</span><span class="pager-title">{{.Title}}</span></a>{{end}}
+      </nav>
+    </article>
+    {{else}}
+    <article class="docs-article">
+      <p class="docs-crumb">Search</p>
+      <h1>Search the documentation</h1>
+      <div class="docs-search-page">{{template "docs-search-results" .}}</div>
+    </article>
+    {{end}}
+  </main>
+  <aside class="docs-toc" aria-label="On this page">{{with .page}}{{if .TOC}}
+    <p class="toc-label">On this page</p>
+    <ol>{{range .TOC}}<li><a href="#{{.ID}}">{{.Text}}</a></li>{{end}}</ol>{{end}}{{end}}
+  </aside>
+</div>
+<p class="sr-only" aria-live="polite" id="copy-status"></p>
+{{template "site-footer" .}}
+{{template "site-scripts" .}}
+</body>
+</html>
+{{end}}
+
+{{define "docs-nav"}}{{range .sections}}
+      <p class="docs-group">{{.Name}}</p>
+      <ul>{{range .Pages}}
+        <li><a href="{{.Path}}"{{if eq $.topic .Slug}} aria-current="page"{{end}}>{{.Title}}</a></li>{{end}}
+      </ul>{{end}}{{end}}
+
+{{define "docs-search-results"}}{{if not .query}}<p class="search-hint">Search page titles, headings, and text across the documentation. Press <kbd>/</kbd> from any docs page to start typing.</p>{{else if .results}}<p class="search-count" role="status">{{len .results}} {{if eq (len .results) 1}}result{{else}}results{{end}} for “{{.query}}”</p>
+<ol class="search-results">{{range .results}}
+  <li><a href="{{.URL}}"><span class="search-page">{{.Page}}</span><span class="search-heading">{{.Heading}}</span></a><p>{{.Snippet}}</p></li>{{end}}
+</ol>{{else}}<div class="search-empty" role="status"><p>No results for “{{.query}}”.</p><p>Every word you type must appear in a title, heading, or body text. Try an error code such as <code>workflow_format_ui</code>, a flag such as <code>state-dir</code>, or start from the <a href="/docs/introduction">introduction</a>.</p></div>{{end}}{{end}}
